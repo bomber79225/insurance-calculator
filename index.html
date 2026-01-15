@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>資產累積策略模擬器 (SDH vs SDL vs SDKA)</title>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
+    
+    <style>
+        body { font-family: "Microsoft JhengHei", "Noto Sans TC", sans-serif; background-color: #f3f4f6; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        input[type="range"] { accent-color: #3b82f6; }
+        input[type="checkbox"] { accent-color: #3b82f6; width: 1.2rem; height: 1.2rem; }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #1d4ed8; font-weight: bold; }
+        .tab-inactive { color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        const originalError = console.error;
+        console.error = (...args) => {
+            if (/defaultProps/.test(args[0])) return;
+            originalError.call(console, ...args);
+        };
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } = window.Recharts;
+
+        const CalculatorIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block mr-2"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+        );
+
+        // --- Data: SDL Rates ---
+        const sdlRates = {
+            male: {
+                0: 253, 1: 253, 2: 253, 3: 253, 4: 253, 5: 253, 
+                10: 135, 11: 133, 12: 141, 13: 155, 14: 171, 15: 229, 16: 261, 17: 316, 18: 397, 19: 420,
+                20: 439, 21: 398, 22: 399, 23: 381, 24: 378, 25: 371, 26: 373, 27: 385, 28: 399, 29: 417,
+                30: 451, 31: 479, 32: 510, 33: 556, 34: 573, 35: 621, 36: 656, 37: 709, 38: 802, 39: 889,
+                40: 970, 41: 1075, 42: 1184, 43: 1276, 44: 1387, 45: 1492, 46: 1631, 47: 1760, 48: 1913, 49: 2088,
+                50: 2290, 51: 2455, 52: 2629, 53: 2806, 54: 3057, 55: 3313, 56: 3506, 57: 3773, 58: 4083, 59: 4403,
+                60: 4768, 61: 5074, 62: 5342, 63: 5705, 64: 5991, 65: 6450, 66: 6768, 67: 7165, 68: 7486, 69: 8003,
+                70: 8538, 71: 8920, 72: 9391, 73: 10016, 74: 10563, 75: 11295, 76: 11991, 77: 12339, 78: 12968, 79: 13083, 80: 13611
+            },
+            female: {
+                0: 180, 1: 180, 2: 180, 3: 180, 4: 180, 5: 180, 
+                10: 124, 11: 136, 12: 133, 13: 146, 14: 170, 15: 199, 16: 235, 17: 259, 18: 301, 19: 339,
+                20: 313, 21: 315, 22: 327, 23: 335, 24: 346, 25: 377, 26: 383, 27: 407, 28: 440, 29: 499,
+                30: 556, 31: 595, 32: 652, 33: 663, 34: 696, 35: 753, 36: 788, 37: 837, 38: 951, 39: 1058,
+                40: 1171, 41: 1282, 42: 1401, 43: 1479, 44: 1569, 45: 1658, 46: 1720, 47: 1836, 48: 1917, 49: 2007,
+                50: 2086, 51: 2163, 52: 2261, 53: 2350, 54: 2433, 55: 2547, 56: 2639, 57: 2796, 58: 2919, 59: 3052,
+                60: 3230, 61: 3381, 62: 3556, 63: 3752, 64: 4012, 65: 4276, 66: 4513, 67: 4716, 68: 5029, 69: 5296,
+                70: 5677, 71: 5975, 72: 6236, 73: 6701, 74: 7142, 75: 7681, 76: 8097, 77: 8592, 78: 9267, 79: 9593, 80: 10053
+            }
+        };
+
+        // --- Data: SDH Rates ---
+        const sdhRates = {
+            male: {
+                0: 405, 5: 405, 10: 405, 15: 405, 
+                20: 410, 21: 415, 22: 410, 23: 410, 24: 415, 25: 415, 26: 420, 27: 425, 28: 425, 29: 435,
+                30: 435, 31: 435, 32: 440, 33: 445, 34: 450, 35: 455, 36: 460, 37: 465, 38: 470, 39: 470,
+                40: 490, 41: 515, 42: 495, 43: 515, 44: 535, 45: 645, 46: 575, 47: 730, 48: 770, 49: 820,
+                50: 665
+            },
+            female: {
+                0: 405, 5: 405, 10: 405, 15: 405, 
+                20: 410, 21: 410, 22: 415, 23: 415, 24: 415, 25: 420, 26: 420, 27: 420, 28: 430, 29: 430,
+                30: 435, 31: 440, 32: 440, 33: 445, 34: 450, 35: 460, 36: 465, 37: 460, 38: 470, 39: 475,
+                40: 475, 41: 480, 42: 540, 43: 575, 44: 610, 45: 555, 46: 680, 47: 595, 48: 615, 49: 640,
+                50: 880
+            }
+        };
+
+        // --- Data: SDKA/SDKB Rates ---
+        const sdkaRates = {
+            male: {
+                15: 51, 16: 53, 17: 56, 18: 57, 19: 58, 20: 59, 21: 62, 22: 65, 23: 68, 24: 70, 25: 73,
+                26: 77, 27: 79, 28: 83, 29: 86, 30: 91, 31: 98, 32: 106, 33: 114, 34: 123, 35: 132,
+                36: 140, 37: 147, 38: 157, 39: 168, 40: 181, 41: 198, 42: 218, 43: 238, 44: 257, 45: 277,
+                46: 296, 47: 315, 48: 336, 49: 355, 50: 377, 51: 412, 52: 448, 53: 485, 54: 518, 55: 555,
+                56: 589, 57: 624, 58: 658, 59: 692, 60: 730, 61: 768
+            },
+            female: {
+                15: 40, 16: 43, 17: 46, 18: 49, 19: 52, 20: 55, 21: 58, 22: 60, 23: 63, 24: 66, 25: 69,
+                26: 72, 27: 76, 28: 80, 29: 84, 30: 88, 31: 96, 32: 104, 33: 113, 34: 122, 35: 130,
+                36: 138, 37: 146, 38: 156, 39: 164, 40: 171, 41: 183, 42: 198, 43: 213, 44: 229, 45: 243,
+                46: 259, 47: 275, 48: 291, 49: 311, 50: 328, 51: 343, 52: 363, 53: 383, 54: 403, 55: 424,
+                56: 445, 57: 467, 58: 488, 59: 511, 60: 537, 61: 570
+            }
+        };
+
+        const sdkbRates = {
+            male: {
+                25: 78, 26: 82, 27: 85, 28: 89, 29: 92, 30: 97, 31: 104, 32: 113, 33: 122, 34: 130, 35: 138,
+                36: 147, 37: 156, 38: 165, 39: 177, 40: 192, 41: 214, 42: 237, 43: 261, 44: 281, 45: 303,
+                46: 325, 47: 347, 48: 370, 49: 390, 50: 412, 51: 448, 52: 487, 53: 526, 54: 560, 55: 602,
+                56: 638, 57: 675, 58: 713, 59: 750, 60: 785, 61: 834, 62: 884, 63: 934, 64: 991, 65: 1048,
+                66: 1100, 67: 1157, 68: 1212, 69: 1269, 70: 1331, 71: 1403
+            },
+            female: {
+                25: 75, 26: 79, 27: 82, 28: 87, 29: 91, 30: 96, 31: 103, 32: 112, 33: 121, 34: 129, 35: 137,
+                36: 146, 37: 154, 38: 164, 39: 175, 40: 185, 41: 200, 42: 215, 43: 232, 44: 250, 45: 267,
+                46: 286, 47: 304, 48: 324, 49: 344, 50: 361, 51: 381, 52: 400, 53: 419, 54: 442, 55: 464,
+                56: 487, 57: 510, 58: 534, 59: 564, 60: 597, 61: 634, 62: 675, 63: 723, 64: 771, 65: 819,
+                66: 867, 67: 913, 68: 963, 69: 1016, 70: 1060, 71: 1116
+            }
+        };
+
+        const getSdhRate = (gender, age) => {
+            const table = sdhRates[gender];
+            if (table[age]) return table[age];
+            const keys = Object.keys(table).map(Number).sort((a,b)=>a-b);
+            let validKey = keys[0];
+            for (let k of keys) {
+                if (k <= age) validKey = k;
+                else break;
+            }
+            return table[validKey];
+        };
+
+        const getSdlRate = (gender, age) => {
+            const table = sdlRates[gender];
+            if (table[age]) return table[age];
+            if (age > 80) return Math.round(table[80] * Math.pow(1.07, age - 80));
+            return table[0]; 
+        };
+
+        const getSdkaRate = (gender, currentAge, entryAge) => {
+            const policyYear = currentAge - entryAge + 1;
+            const blockIndex = Math.floor((policyYear - 1) / 10); 
+            const blockStartAge = entryAge + (blockIndex * 10);
+            if (blockIndex === 0) {
+                const rate = sdkaRates[gender][blockStartAge];
+                return rate ? rate * 100 : 99999; 
+            } else {
+                const rate = sdkbRates[gender][blockStartAge];
+                return rate ? rate * 100 : 99999; 
+            }
+        };
+
+        const App = () => {
+            const [age, setAge] = useState(36);
+            const [gender, setGender] = useState('male');
+            const [etfReturn, setEtfReturn] = useState(8.0);
+            const [years, setYears] = useState(35); 
+            const [showSDL, setShowSDL] = useState(true);
+            const [showSDKA, setShowSDKA] = useState(false);
+            const [activeTable, setActiveTable] = useState('SDL'); // 'SDL' or 'SDKA'
+
+            const coverageAmountSDL = 10;
+            const coverageAmountSDH = 100;
+
+            const annualBudget = useMemo(() => {
+                const rate = getSdhRate(gender, age);
+                return rate * coverageAmountSDH;
+            }, [age, gender]);
+
+            const data = useMemo(() => {
+                const result = [];
+                let strat1_accum = 0; 
+                let strat2_accum = 0; 
+                let strat3_accum = 0; // SDKA (formerly strat4)
+                let strat4_etf_accum = 0; // SDH (formerly strat3)
+                
+                for (let i = 0; i <= years; i++) {
+                    if (i === 0) {
+                        result.push({ 
+                            year: 0, age: age,
+                            strat1: 0, strat2: 0, strat3: 0, strat4: 0,
+                            premiumSDL: 0, premiumSDKA: 0,
+                            investable2: 0, investable3: 0,
+                            strat4_bonus: 0, strat3_bonus: 0
+                        });
+                        continue;
+                    }
+                    
+                    const premiumAge = age + i - 1;
+
+                    // 1. Pure 0050
+                    strat1_accum = (strat1_accum * (1 + etfReturn / 100)) + annualBudget;
+
+                    // 2. SDL + 0050
+                    const sdlRate = getSdlRate(gender, premiumAge);
+                    const annualPremiumSDL = sdlRate * coverageAmountSDL;
+                    const netFlow2 = annualBudget - annualPremiumSDL;
+                    strat2_accum = strat2_accum * (1 + etfReturn / 100);
+                    strat2_accum += netFlow2;
+
+                    // 3. SDKA + 0050 (Formerly Strategy 4)
+                    // Cost changes every 10 years, 10% back every 10 years
+                    const annualPremiumSDKA = getSdkaRate(gender, premiumAge, age);
+                    const netFlow3 = annualBudget - annualPremiumSDKA;
+                    
+                    strat3_accum = strat3_accum * (1 + etfReturn / 100);
+                    strat3_accum += netFlow3;
+
+                    let strat3_bonus_display = 0;
+                    if (i > 0 && i % 10 === 0) {
+                        const refund = annualPremiumSDKA; // 10% of 10 years = 1 year premium
+                        strat3_accum += refund;
+                        strat3_bonus_display = refund;
+                    }
+
+                    // 4. SDH + 0050 (Formerly Strategy 3)
+                    // Years 1-20: Premium paid (Asset=0). Years 21+: Invest budget.
+                    strat4_etf_accum = strat4_etf_accum * (1 + etfReturn / 100);
+                    if (i > 20) strat4_etf_accum += annualBudget;
+                    
+                    let strat4_total = strat4_etf_accum;
+                    let strat4_bonus_display = 0;
+                    if (i >= 35) {
+                        const totalSDHPremium = annualBudget * 20;
+                        const ropBonus = totalSDHPremium * 1.06;
+                        strat4_total += ropBonus;
+                        if (i === 35) strat4_bonus_display = ropBonus;
+                    }
+
+                    result.push({
+                        year: i,
+                        age: premiumAge,
+                        strat1: Math.round(strat1_accum),
+                        strat2: Math.round(strat2_accum),
+                        strat3: Math.round(strat3_accum), // SDKA
+                        strat4: Math.round(strat4_total), // SDH
+                        premiumSDL: annualPremiumSDL,
+                        premiumSDKA: annualPremiumSDKA,
+                        investable2: netFlow2,
+                        investable3: netFlow3, // SDKA investable
+                        deficit2: netFlow2 < 0,
+                        deficit3: netFlow3 < 0,
+                        strat3_bonus: strat3_bonus_display,
+                        strat4_bonus: strat4_bonus_display
+                    });
+                }
+                return result;
+            }, [age, gender, etfReturn, years, annualBudget]);
+
+            // Simplified SDKA Data Generation
+            const sdkaSimplifiedData = useMemo(() => {
+                const blocks = [];
+                const totalBlocks = Math.ceil(years / 10);
+                
+                for (let b = 0; b < totalBlocks; b++) {
+                    const startYear = b * 10 + 1;
+                    const endYear = Math.min((b + 1) * 10, years);
+                    if (startYear > years) break;
+
+                    const startAgeBlock = age + startYear - 1;
+                    const endAgeBlock = age + endYear - 1;
+                    
+                    // Get data from simulation
+                    const yearData = data[startYear];
+                    if (!yearData) continue;
+
+                    const premium = yearData.premiumSDKA;
+                    const investable = yearData.investable3; // Strategy 3 is now SDKA
+                    
+                    // Bonus is at the end of the block (e.g. year 10, 20)
+                    const bonusYear = (b + 1) * 10;
+                    let bonus = 0;
+                    if (bonusYear <= years) {
+                         const bonusData = data[bonusYear];
+                         bonus = bonusData ? bonusData.strat3_bonus : 0;
+                    }
+
+                    blocks.push({
+                        period: `${startAgeBlock}-${endAgeBlock}歲`,
+                        premium: premium,
+                        investable: investable,
+                        bonus: bonus
+                    });
+                }
+                return blocks;
+            }, [data, years, age]);
+
+
+            const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'decimal', maximumFractionDigits: 0 }).format(val);
+            const formatMoney = (val) => {
+                 if (val >= 100000000) return (val / 100000000).toFixed(2) + "億";
+                 if (val >= 10000) return (val / 10000).toFixed(1) + "萬"; // Slightly more precision
+                 return val;
+            };
+
+            const finalData = data[data.length - 1];
+
+            return (
+                <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
+                    <header className="mb-6 border-b pb-4">
+                        <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
+                            <CalculatorIcon />
+                            資產累積策略模擬器 (SDH vs SDL vs SDKA)
+                        </h1>
+                        <p className="text-gray-600 mt-2 text-sm md:text-base">
+                            基準：<span className="font-bold text-green-600">SDH保費</span>作為年度預算。
+                        </p>
+                    </header>
+
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="card p-4 border-t-4 border-blue-600 bg-blue-50">
+                            <h3 className="text-xs font-bold text-blue-900 uppercase">策略一 (純0050)</h3>
+                            <div className="text-2xl font-bold text-blue-700 mt-1">{formatMoney(finalData.strat1)}</div>
+                            <div className="text-[10px] text-blue-600 mt-1">無保險成本</div>
+                        </div>
+                        {showSDL && (
+                            <div className="card p-4 border-t-4 border-purple-600 bg-purple-50">
+                                <h3 className="text-xs font-bold text-purple-900 uppercase">策略二 (SDL)</h3>
+                                <div className="text-2xl font-bold text-purple-700 mt-1">{formatMoney(finalData.strat2)}</div>
+                                <div className="text-[10px] text-purple-600 mt-1">自然費率 (消耗型)</div>
+                            </div>
+                        )}
+                        {showSDKA && (
+                            <div className="card p-4 border-t-4 border-orange-500 bg-orange-50">
+                                <h3 className="text-xs font-bold text-orange-900 uppercase">策略三 (SDKA)</h3>
+                                <div className="text-2xl font-bold text-orange-700 mt-1">{formatMoney(finalData.strat3)}</div>
+                                <div className="text-[10px] text-orange-600 mt-1">10年期平準 (含10%回饋)</div>
+                            </div>
+                        )}
+                        <div className="card p-4 border-t-4 border-green-600 bg-green-50">
+                            <h3 className="text-xs font-bold text-green-900 uppercase">策略四 (SDH)</h3>
+                            <div className="text-2xl font-bold text-green-700 mt-1">{formatMoney(finalData.strat4)}</div>
+                            <div className="text-[10px] text-green-600 mt-1">第35年退還 1.06倍</div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="card p-5 border-l-4 border-gray-600">
+                                <h3 className="text-lg font-bold text-gray-800 mb-4">參數設定</h3>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">投保年齡</label>
+                                            <input type="number" min="0" max="60" value={age} onChange={(e) => setAge(Number(e.target.value))} className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">性別</label>
+                                            <div className="flex bg-gray-100 rounded p-1">
+                                                <button onClick={() => setGender('male')} className={`flex-1 py-1 px-2 rounded text-sm ${gender === 'male' ? 'bg-white shadow text-blue-600 font-bold' : 'text-gray-500'}`}>男</button>
+                                                <button onClick={() => setGender('female')} className={`flex-1 py-1 px-2 rounded text-sm ${gender === 'female' ? 'bg-white shadow text-pink-600 font-bold' : 'text-gray-500'}`}>女</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                                        <label className="block text-xs font-bold text-yellow-800 mb-1">年度總預算 (SDH保費)</label>
+                                        <div className="text-xl font-mono font-bold text-yellow-900">{formatCurrency(annualBudget)} 元</div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">模擬年限: {years} 年 ({age}->{age+years}歲)</label>
+                                        <input type="range" min="20" max="44" value={years} onChange={(e) => setYears(Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg cursor-pointer" />
+                                    </div>
+
+                                    <div className="border-t pt-4">
+                                        <label className="block text-sm font-bold text-gray-800 mb-2">比較對象選擇:</label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center space-x-2 cursor-pointer">
+                                                <input type="checkbox" checked={showSDL} onChange={(e) => setShowSDL(e.target.checked)} />
+                                                <span className="text-sm text-gray-700">策略二: SDL (一年期自然費率)</span>
+                                            </label>
+                                            <label className="flex items-center space-x-2 cursor-pointer">
+                                                <input type="checkbox" checked={showSDKA} onChange={(e) => setShowSDKA(e.target.checked)} />
+                                                <span className="text-sm text-gray-700">策略三: SDKA (10年期平準 + 回饋)</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                             {/* Tabbed Detail Tables */}
+                            <div className="card overflow-hidden flex flex-col h-[400px]">
+                                <div className="flex border-b border-gray-200">
+                                    <button 
+                                        onClick={() => setActiveTable('SDL')}
+                                        className={`flex-1 py-3 text-sm font-medium text-center ${activeTable === 'SDL' ? 'tab-active' : 'tab-inactive hover:text-gray-800'}`}
+                                    >
+                                        SDL 明細 (自然費率)
+                                    </button>
+                                    <button 
+                                        onClick={() => setActiveTable('SDKA')}
+                                        className={`flex-1 py-3 text-sm font-medium text-center ${activeTable === 'SDKA' ? 'tab-active' : 'tab-inactive hover:text-gray-800'}`}
+                                    >
+                                        SDKA 明細 (階梯式)
+                                    </button>
+                                </div>
+                                
+                                <div className="overflow-y-auto custom-scroll flex-1 p-0">
+                                    {activeTable === 'SDL' ? (
+                                        <table className="w-full text-xs text-left">
+                                            <thead className="text-gray-500 bg-gray-50 sticky top-0 z-10">
+                                                <tr>
+                                                    <th className="px-3 py-2 font-medium">年齡</th>
+                                                    <th className="px-3 py-2 font-medium">保費(消耗)</th>
+                                                    <th className="px-3 py-2 font-medium text-right">剩餘/倒扣</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {data.filter(r => r.year > 0).map((row) => (
+                                                    <tr key={row.year} className={`border-b last:border-0 hover:bg-gray-50 ${row.deficit2 ? 'bg-red-50' : ''}`}>
+                                                        <td className="px-3 py-2 text-gray-600">{row.age} 歲</td>
+                                                        <td className="px-3 py-2 text-gray-800">-{formatCurrency(row.premiumSDL)}</td>
+                                                        <td className={`px-3 py-2 font-bold text-right ${row.investable2 < 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                                                            {formatCurrency(row.investable2)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <table className="w-full text-xs text-left">
+                                            <thead className="text-gray-500 bg-gray-50 sticky top-0 z-10">
+                                                <tr>
+                                                    <th className="px-3 py-2 font-medium">期間</th>
+                                                    <th className="px-3 py-2 font-medium">年繳保費</th>
+                                                    <th className="px-3 py-2 font-medium text-right">年投入ETF</th>
+                                                    <th className="px-3 py-2 font-medium text-right">期末回沖</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {sdkaSimplifiedData.map((block, idx) => (
+                                                    <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
+                                                        <td className="px-3 py-3 text-gray-600 font-medium">{block.period}</td>
+                                                        <td className="px-3 py-3 text-orange-800">-{formatCurrency(block.premium)}</td>
+                                                        <td className={`px-3 py-3 text-right font-mono ${block.investable < 0 ? 'text-red-600 font-bold' : 'text-blue-600'}`}>
+                                                            {formatCurrency(block.investable)}
+                                                        </td>
+                                                        <td className="px-3 py-3 text-right font-bold text-green-600">
+                                                            {block.bonus > 0 ? `+${formatCurrency(block.bonus)}` : '-'}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </div>
+                                <div className="p-2 bg-gray-50 text-[10px] text-gray-500 border-t text-center">
+                                    {activeTable === 'SDL' ? '紅字代表保費超過預算，從資產中倒扣' : '每10年為一期，期末回沖10%保費'}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Chart */}
+                        <div className="lg:col-span-8 space-y-6">
+                            <div className="card p-4 h-[550px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={data} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                                        <XAxis dataKey="age" label={{ value: '年齡', position: 'insideBottomRight', offset: -5 }} tickLine={false} axisLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
+                                        <YAxis tickFormatter={(val) => val >= 10000 ? `${val/10000}萬` : val} tickLine={false} axisLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
+                                        <Tooltip 
+                                            contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
+                                            labelFormatter={(l) => `${l} 歲 (第 ${l - age + 1} 年)`}
+                                            formatter={(value, name, props) => {
+                                                if (name === "策略一") return [formatCurrency(value), "純 0050"];
+                                                if (name === "策略二") return [
+                                                    <span key="s2">
+                                                        {formatCurrency(value)}
+                                                        <span className="text-xs text-gray-400 block font-normal">(費率: {formatCurrency(props.payload.premiumSDL)})</span>
+                                                    </span>, "SDL"];
+                                                if (name === "策略三") return [
+                                                    <span key="s3">
+                                                        {formatCurrency(value)}
+                                                        {props.payload.strat3_bonus > 0 && <span className="text-xs text-orange-600 block font-bold">(無理賠回饋: {formatMoney(props.payload.strat3_bonus)})</span>}
+                                                    </span>, "SDKA"];
+                                                if (name === "策略四") return [
+                                                    <span key="s4">
+                                                        {formatCurrency(value)}
+                                                        {props.payload.strat4_bonus > 0 && <span className="text-xs text-green-600 block font-bold">(含退還: {formatMoney(props.payload.strat4_bonus)})</span>}
+                                                    </span>, "SDH"];
+                                                return [value, name];
+                                            }}
+                                        />
+                                        <Legend verticalAlign="top" height={36}/>
+                                        <Line type="monotone" dataKey="strat1" name="策略一 (純0050)" stroke="#2563eb" strokeWidth={3} dot={false} />
+                                        {showSDL && <Line type="monotone" dataKey="strat2" name="策略二 (SDL)" stroke="#9333ea" strokeWidth={3} dot={false} />}
+                                        {showSDKA && <Line type="monotone" dataKey="strat3" name="策略三 (SDKA)" stroke="#f97316" strokeWidth={3} dot={false} />}
+                                        <Line type="monotone" dataKey="strat4" name="策略四 (SDH)" stroke="#16a34a" strokeWidth={3} dot={false} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                            
+                            <div className="bg-white border rounded-lg p-4 text-sm text-gray-700 shadow-sm">
+                                <h4 className="font-bold text-gray-900 mb-2">明細說明</h4>
+                                <ul className="list-disc pl-5 space-y-2 text-xs md:text-sm">
+                                    <li>
+                                        <span className="font-bold text-purple-600">策略二 (SDL)：</span>
+                                        一年期自然費率。紅字代表當年度保費 > 預算，需從 ETF 資產中倒扣。
+                                    </li>
+                                    <li>
+                                        <span className="font-bold text-orange-600">策略三 (SDKA)：</span>
+                                        10 年期平準費率。每 10 年固定繳費，期末若無理賠可回沖一年保費 (10%)。
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
