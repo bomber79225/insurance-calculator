@@ -158,7 +158,7 @@
             const [years, setYears] = useState(35); 
             const [showSDL, setShowSDL] = useState(true);
             const [showSDKA, setShowSDKA] = useState(false);
-            const [activeTable, setActiveTable] = useState('SDL'); // 'SDL' or 'SDKA'
+            const [activeTable, setActiveTable] = useState('SDL'); 
 
             const coverageAmountSDL = 10;
             const coverageAmountSDH = 100;
@@ -172,8 +172,8 @@
                 const result = [];
                 let strat1_accum = 0; 
                 let strat2_accum = 0; 
-                let strat3_accum = 0; // SDKA (formerly strat4)
-                let strat4_etf_accum = 0; // SDH (formerly strat3)
+                let strat3_accum = 0; 
+                let strat4_etf_accum = 0; 
                 
                 for (let i = 0; i <= years; i++) {
                     if (i === 0) {
@@ -199,8 +199,7 @@
                     strat2_accum = strat2_accum * (1 + etfReturn / 100);
                     strat2_accum += netFlow2;
 
-                    // 3. SDKA + 0050 (Formerly Strategy 4)
-                    // Cost changes every 10 years, 10% back every 10 years
+                    // 3. SDKA + 0050 
                     const annualPremiumSDKA = getSdkaRate(gender, premiumAge, age);
                     const netFlow3 = annualBudget - annualPremiumSDKA;
                     
@@ -209,13 +208,12 @@
 
                     let strat3_bonus_display = 0;
                     if (i > 0 && i % 10 === 0) {
-                        const refund = annualPremiumSDKA; // 10% of 10 years = 1 year premium
+                        const refund = annualPremiumSDKA; 
                         strat3_accum += refund;
                         strat3_bonus_display = refund;
                     }
 
-                    // 4. SDH + 0050 (Formerly Strategy 3)
-                    // Years 1-20: Premium paid (Asset=0). Years 21+: Invest budget.
+                    // 4. SDH + 0050 
                     strat4_etf_accum = strat4_etf_accum * (1 + etfReturn / 100);
                     if (i > 20) strat4_etf_accum += annualBudget;
                     
@@ -233,22 +231,21 @@
                         age: premiumAge,
                         strat1: Math.round(strat1_accum),
                         strat2: Math.round(strat2_accum),
-                        strat3: Math.round(strat3_accum), // SDKA
-                        strat4: Math.round(strat4_total), // SDH
+                        strat3: Math.round(strat3_accum), 
+                        strat4: Math.round(strat4_total), 
                         premiumSDL: annualPremiumSDL,
                         premiumSDKA: annualPremiumSDKA,
                         investable2: netFlow2,
-                        investable3: netFlow3, // SDKA investable
+                        investable3: netFlow3, 
                         deficit2: netFlow2 < 0,
                         deficit3: netFlow3 < 0,
-                        strat3_bonus: strat3_bonus_display,
-                        strat4_bonus: strat4_bonus_display
+                        strat3_bonus: strat3_bonus_display, 
+                        strat4_bonus: strat4_bonus_display 
                     });
                 }
                 return result;
             }, [age, gender, etfReturn, years, annualBudget]);
 
-            // Simplified SDKA Data Generation
             const sdkaSimplifiedData = useMemo(() => {
                 const blocks = [];
                 const totalBlocks = Math.ceil(years / 10);
@@ -261,14 +258,12 @@
                     const startAgeBlock = age + startYear - 1;
                     const endAgeBlock = age + endYear - 1;
                     
-                    // Get data from simulation
                     const yearData = data[startYear];
                     if (!yearData) continue;
 
                     const premium = yearData.premiumSDKA;
-                    const investable = yearData.investable3; // Strategy 3 is now SDKA
+                    const investable = yearData.investable3; 
                     
-                    // Bonus is at the end of the block (e.g. year 10, 20)
                     const bonusYear = (b + 1) * 10;
                     let bonus = 0;
                     if (bonusYear <= years) {
@@ -290,11 +285,18 @@
             const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'decimal', maximumFractionDigits: 0 }).format(val);
             const formatMoney = (val) => {
                  if (val >= 100000000) return (val / 100000000).toFixed(2) + "億";
-                 if (val >= 10000) return (val / 10000).toFixed(1) + "萬"; // Slightly more precision
+                 if (val >= 10000) return (val / 10000).toFixed(1) + "萬"; 
                  return val;
             };
 
             const finalData = data[data.length - 1];
+            
+            const totalPremiums = useMemo(() => {
+                const sdl = data.reduce((sum, row) => sum + row.premiumSDL, 0);
+                const sdka = data.reduce((sum, row) => sum + row.premiumSDKA, 0);
+                const sdh = annualBudget * Math.min(years, 20);
+                return { sdl, sdka, sdh };
+            }, [data, annualBudget, years]);
 
             return (
                 <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
@@ -308,7 +310,6 @@
                         </p>
                     </header>
 
-                    {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                         <div className="card p-4 border-t-4 border-blue-600 bg-blue-50">
                             <h3 className="text-xs font-bold text-blue-900 uppercase">策略一 (純0050)</h3>
@@ -378,10 +379,31 @@
                                             </label>
                                         </div>
                                     </div>
+                                    
+                                    <div className="border-t pt-4">
+                                        <label className="block text-sm font-bold text-gray-800 mb-2">累計已繳保費 ({years}年):</label>
+                                        <div className="space-y-2 text-sm">
+                                            {showSDL && (
+                                                <div className="flex justify-between items-center bg-purple-50 p-2 rounded">
+                                                    <span className="text-purple-900">SDL 總繳</span>
+                                                    <span className="font-mono font-bold text-purple-700">{formatCurrency(totalPremiums.sdl)}</span>
+                                                </div>
+                                            )}
+                                            {showSDKA && (
+                                                <div className="flex justify-between items-center bg-orange-50 p-2 rounded">
+                                                    <span className="text-orange-900">SDKA 總繳</span>
+                                                    <span className="font-mono font-bold text-orange-700">{formatCurrency(totalPremiums.sdka)}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between items-center bg-green-50 p-2 rounded">
+                                                <span className="text-green-900">SDH 總繳</span>
+                                                <span className="font-mono font-bold text-green-700">{formatCurrency(totalPremiums.sdh)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                             {/* Tabbed Detail Tables */}
                             <div className="card overflow-hidden flex flex-col h-[400px]">
                                 <div className="flex border-b border-gray-200">
                                     <button 
@@ -448,7 +470,7 @@
                                     )}
                                 </div>
                                 <div className="p-2 bg-gray-50 text-[10px] text-gray-500 border-t text-center">
-                                    {activeTable === 'SDL' ? '紅字代表保費超過預算，從資產中倒扣' : '每10年為一期，期末回沖10%保費'}
+                                    {activeTable === 'SDL' ? '紅字代表保費超過預算，從資產中倒扣 (需額外補錢)' : '每10年為一期，期末回沖10%保費'}
                                 </div>
                             </div>
                         </div>
