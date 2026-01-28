@@ -3,543 +3,622 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>資產累積策略模擬器 (SDH vs SDL vs SDKA)</title>
-    
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <title>Everybody Up 單字大挑戰 (v25.0)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
-    <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
-    
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        body { font-family: "Microsoft JhengHei", "Noto Sans TC", sans-serif; background-color: #f3f4f6; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        input[type="range"] { accent-color: #3b82f6; }
-        input[type="checkbox"] { accent-color: #3b82f6; width: 1.2rem; height: 1.2rem; }
-        .tab-active { border-bottom: 2px solid #3b82f6; color: #1d4ed8; font-weight: bold; }
-        .tab-inactive { color: #6b7280; }
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+TC:wght@400;700&display=swap');
+        
+        /* 基礎設定 */
+        body {
+            font-family: 'Noto Sans TC', 'Fredoka', sans-serif;
+            margin: 0;
+            padding: 0;
+            overscroll-behavior: none; 
+            overflow-x: hidden;
+        }
+        
+        /* 模式主題色 (應用於 App 容器) */
+        .theme-easy { 
+            background-color: #e0f2fe; /* 天空藍 */
+            color: #1e293b;
+        }
+        .theme-hard { 
+            background-color: #2a0a0a; /* 地獄紅黑 */
+            color: #fca5a5;
+        }
+
+        /* 讓容器平滑過渡 */
+        .app-container {
+            transition: background-color 0.8s ease, color 0.5s ease;
+        }
+
+        .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+        .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .correct-flash { animation: correctFlash 0.5s ease-out; }
+        @keyframes correctFlash { 0% { background-color: #22c55e; } 100% { background-color: white; } }
+
+        /* 元件樣式 */
+        .gamified-switch {
+            position: relative; width: 100%; height: 56px; background-color: #cbd5e1; border-radius: 9999px;
+            cursor: pointer; overflow: hidden; display: flex; align-items: center; justify-content: space-between;
+            padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;
+        }
+        .theme-hard .gamified-switch { background-color: #450a0a; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5); }
+
+        .switch-indicator {
+            position: absolute; top: 4px; left: 4px; width: calc(50% - 4px); height: calc(100% - 8px);
+            background: white; border-radius: 9999px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), background-color 0.3s; z-index: 10;
+        }
+        .switch-indicator.hard-active { transform: translateX(100%); background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); }
+        .switch-indicator.easy-active { background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); }
+
+        .mode-switch {
+            position: relative; width: 100%; height: 48px; background-color: rgba(255,255,255,0.5);
+            border: 2px solid #e2e8f0; border-radius: 12px; cursor: pointer; display: flex;
+            align-items: center; padding: 2px; margin-top: 8px;
+        }
+        .theme-hard .mode-switch { background-color: rgba(0,0,0,0.3); border-color: #7f1d1d; }
+
+        .mode-indicator {
+            position: absolute; top: 2px; left: 2px; width: calc(33.33% - 2.6px); height: calc(100% - 4px);
+            border-radius: 8px; transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), background 0.3s;
+            z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .mode-indicator.pos-0 { transform: translateX(0%); background: #3b82f6; }
+        .mode-indicator.pos-1 { transform: translateX(100%); background: #8b5cf6; }
+        .mode-indicator.pos-2 { transform: translateX(200%); background: linear-gradient(90deg, #f59e0b, #ef4444); }
+        .theme-hard .mode-indicator.pos-0 { background: #1d4ed8; }
+        .theme-hard .mode-indicator.pos-1 { background: #7c3aed; }
+        .theme-hard .mode-indicator.pos-2 { background: linear-gradient(90deg, #b45309, #b91c1c); }
+
+        .switch-label, .mode-label {
+            flex: 1; text-align: center; font-weight: 900; z-index: 20; transition: color 0.3s;
+            display: flex; align-items: center; justify-content: center; gap: 8px; user-select: none;
+        }
+        .switch-label.active, .mode-label.active { color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .switch-label.inactive, .mode-label.inactive { color: #64748b; }
+        .theme-hard .switch-label.inactive, .theme-hard .mode-label.inactive { color: #7f1d1d; }
+        .theme-hard .mode-label.inactive { color: #9ca3af; }
+
+        .animate-bounce-custom { animation: bounce-custom 1s infinite; }
+        @keyframes bounce-custom { 0%, 100% { transform: translateY(-5%); } 50% { transform: translateY(0); } }
+        
+        @keyframes floatCloud { 0% { transform: translateX(0); } 50% { transform: translateX(20px); } 100% { transform: translateX(0); } }
+        @keyframes flyBat { 0% { transform: translateY(0) rotate(0deg); } 25% { transform: translateY(-10px) rotate(-5deg); } 75% { transform: translateY(10px) rotate(5deg); } 100% { transform: translateY(0) rotate(0deg); } }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <script>
-        const originalError = console.error;
-        console.error = (...args) => {
-            if (/defaultProps/.test(args[0])) return;
-            originalError.call(console, ...args);
-        };
-    </script>
-
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
-        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } = window.Recharts;
+        const { useState, useEffect, useMemo, useRef } = React;
+        
+        const getLucideIcon = (name) => {
+            if (typeof window.lucide === 'undefined') return null;
+            return window.lucide.icons ? window.lucide.icons[name] : window.lucide[name];
+        };
+        const createLucideIcon = (name) => {
+             const iconNode = getLucideIcon(name);
+             if (!iconNode || !Array.isArray(iconNode)) return () => null;
+             const Component = ({ color = "currentColor", size = 24, strokeWidth = 2, className = "", ...props }) => {
+                 const [tag, defaultAttrs, children] = iconNode;
+                 return React.createElement(tag, { ...defaultAttrs, width: size, height: size, stroke: color, strokeWidth: strokeWidth, className: `lucide lucide-${name} ${className}`, ...props }, 
+                     (Array.isArray(children) ? children : []).map(([childTag, childAttrs], index) => React.createElement(childTag, { ...childAttrs, key: index }))
+                 );
+             };
+             return Component;
+        };
 
-        const CalculatorIcon = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block mr-2"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+        const [Upload, Book, Settings, Star, Trophy, Crown, RefreshCcw, CheckCircle, XCircle, Play, ArrowRight, Volume2, Home, HardDrive, Smile, Flame, Eye, Cloud, Globe, Shuffle, Languages, LogOut, History, Calendar, Clock] = 
+            ["Upload", "Book", "Settings", "Star", "Trophy", "Crown", "RefreshCcw", "CheckCircle", "XCircle", "Play", "ArrowRight", "Volume2", "Home", "HardDrive", "Smile", "Flame", "Eye", "Cloud", "Globe", "Shuffle", "Languages", "LogOut", "History", "Calendar", "Clock"].map(n => createLucideIcon(n));
+
+        const BatIcon = ({ className, style }) => (
+            <svg viewBox="0 0 24 24" fill="currentColor" className={className} style={style}><path d="M2 12s3-4 6-2c0 0 1-2 4-2 3 0 4 2 4 2 3-2 6 2 0 0-3 5-6 3 0 0-2 2-4 0 0 0-3-2-6-3z"/></svg>
         );
 
-        // --- Data: SDL Rates ---
-        const sdlRates = {
-            male: {
-                0: 253, 1: 253, 2: 253, 3: 253, 4: 253, 5: 253, 
-                10: 135, 11: 133, 12: 141, 13: 155, 14: 171, 15: 229, 16: 261, 17: 316, 18: 397, 19: 420,
-                20: 439, 21: 398, 22: 399, 23: 381, 24: 378, 25: 371, 26: 373, 27: 385, 28: 399, 29: 417,
-                30: 451, 31: 479, 32: 510, 33: 556, 34: 573, 35: 621, 36: 656, 37: 709, 38: 802, 39: 889,
-                40: 970, 41: 1075, 42: 1184, 43: 1276, 44: 1387, 45: 1492, 46: 1631, 47: 1760, 48: 1913, 49: 2088,
-                50: 2290, 51: 2455, 52: 2629, 53: 2806, 54: 3057, 55: 3313, 56: 3506, 57: 3773, 58: 4083, 59: 4403,
-                60: 4768, 61: 5074, 62: 5342, 63: 5705, 64: 5991, 65: 6450, 66: 6768, 67: 7165, 68: 7486, 69: 8003,
-                70: 8538, 71: 8920, 72: 9391, 73: 10016, 74: 10563, 75: 11295, 76: 11991, 77: 12339, 78: 12968, 79: 13083, 80: 13611
-            },
-            female: {
-                0: 180, 1: 180, 2: 180, 3: 180, 4: 180, 5: 180, 
-                10: 124, 11: 136, 12: 133, 13: 146, 14: 170, 15: 199, 16: 235, 17: 259, 18: 301, 19: 339,
-                20: 313, 21: 315, 22: 327, 23: 335, 24: 346, 25: 377, 26: 383, 27: 407, 28: 440, 29: 499,
-                30: 556, 31: 595, 32: 652, 33: 663, 34: 696, 35: 753, 36: 788, 37: 837, 38: 951, 39: 1058,
-                40: 1171, 41: 1282, 42: 1401, 43: 1479, 44: 1569, 45: 1658, 46: 1720, 47: 1836, 48: 1917, 49: 2007,
-                50: 2086, 51: 2163, 52: 2261, 53: 2350, 54: 2433, 55: 2547, 56: 2639, 57: 2796, 58: 2919, 59: 3052,
-                60: 3230, 61: 3381, 62: 3556, 63: 3752, 64: 4012, 65: 4276, 66: 4513, 67: 4716, 68: 5029, 69: 5296,
-                70: 5677, 71: 5975, 72: 6236, 73: 6701, 74: 7142, 75: 7681, 76: 8097, 77: 8592, 78: 9267, 79: 9593, 80: 10053
+        const FALLBACK_DATA = { "G1": { "Unit 1": [{ "en": "apple", "ch": "蘋果" }] } };
+        
+        // --- Storage Helpers ---
+        const SETTINGS_KEY = 'everybodyup_settings_v1';
+        const HISTORY_KEY = 'everybodyup_history_v1';
+        
+        const loadSettings = () => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)); } catch (e) { return null; } };
+        const saveSettings = (s) => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) {} };
+        
+        const loadHistory = () => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch (e) { return []; } };
+        const saveHistoryRecord = (record) => {
+            try {
+                const currentHistory = loadHistory();
+                const newHistory = [record, ...currentHistory].slice(0, 6);
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
+            } catch (e) {}
+        };
+
+        const parseCSV = (content) => { 
+            const lines = content.split(/\r?\n/); const unitsData = {}; let headerRowIndex = -1;
+            for(let i=0; i<lines.length && i<10; i++) { if(lines[i].includes("Unit 1")) { headerRowIndex = i; break; } }
+            if (headerRowIndex === -1) return null;
+            const rows = lines.slice(headerRowIndex + 1); 
+            for (let u = 1; u <= 8; u++) {
+                const enCol = (u - 1) * 3; const chCol = enCol + 1; const unitName = `Unit ${u}`; const vocabList = [];
+                rows.forEach(row => {
+                    let cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); cols = cols.map(c => c ? c.replace(/^"|"$/g, '').trim() : '');
+                    if (cols.length > chCol) { const en = cols[enCol]; const ch = cols[chCol]; if (en && ch && en.toLowerCase() !== 'nan') vocabList.push({ en, ch }); }
+                });
+                if (vocabList.length > 0) unitsData[unitName] = vocabList;
             }
+            return unitsData;
         };
 
-        // --- Data: SDH Rates ---
-        const sdhRates = {
-            male: {
-                0: 405, 5: 405, 10: 405, 15: 405, 
-                20: 410, 21: 415, 22: 410, 23: 410, 24: 415, 25: 415, 26: 420, 27: 425, 28: 425, 29: 435,
-                30: 435, 31: 435, 32: 440, 33: 445, 34: 450, 35: 455, 36: 460, 37: 465, 38: 470, 39: 470,
-                40: 490, 41: 515, 42: 495, 43: 515, 44: 535, 45: 645, 46: 575, 47: 730, 48: 770, 49: 820,
-                50: 665
-            },
-            female: {
-                0: 405, 5: 405, 10: 405, 15: 405, 
-                20: 410, 21: 410, 22: 415, 23: 415, 24: 415, 25: 420, 26: 420, 27: 420, 28: 430, 29: 430,
-                30: 435, 31: 440, 32: 440, 33: 445, 34: 450, 35: 460, 36: 465, 37: 460, 38: 470, 39: 475,
-                40: 475, 41: 480, 42: 540, 43: 575, 44: 610, 45: 555, 46: 680, 47: 595, 48: 615, 49: 640,
-                50: 880
-            }
-        };
+        // --- Components ---
 
-        // --- Data: SDKA/SDKB Rates ---
-        const sdkaRates = {
-            male: {
-                15: 51, 16: 53, 17: 56, 18: 57, 19: 58, 20: 59, 21: 62, 22: 65, 23: 68, 24: 70, 25: 73,
-                26: 77, 27: 79, 28: 83, 29: 86, 30: 91, 31: 98, 32: 106, 33: 114, 34: 123, 35: 132,
-                36: 140, 37: 147, 38: 157, 39: 168, 40: 181, 41: 198, 42: 218, 43: 238, 44: 257, 45: 277,
-                46: 296, 47: 315, 48: 336, 49: 355, 50: 377, 51: 412, 52: 448, 53: 485, 54: 518, 55: 555,
-                56: 589, 57: 624, 58: 658, 59: 692, 60: 730, 61: 768
-            },
-            female: {
-                15: 40, 16: 43, 17: 46, 18: 49, 19: 52, 20: 55, 21: 58, 22: 60, 23: 63, 24: 66, 25: 69,
-                26: 72, 27: 76, 28: 80, 29: 84, 30: 88, 31: 96, 32: 104, 33: 113, 34: 122, 35: 130,
-                36: 138, 37: 146, 38: 156, 39: 164, 40: 171, 41: 183, 42: 198, 43: 213, 44: 229, 45: 243,
-                46: 259, 47: 275, 48: 291, 49: 311, 50: 328, 51: 343, 52: 363, 53: 383, 54: 403, 55: 424,
-                56: 445, 57: 467, 58: 488, 59: 511, 60: 537, 61: 570
-            }
-        };
-
-        const sdkbRates = {
-            male: {
-                25: 78, 26: 82, 27: 85, 28: 89, 29: 92, 30: 97, 31: 104, 32: 113, 33: 122, 34: 130, 35: 138,
-                36: 147, 37: 156, 38: 165, 39: 177, 40: 192, 41: 214, 42: 237, 43: 261, 44: 281, 45: 303,
-                46: 325, 47: 347, 48: 370, 49: 390, 50: 412, 51: 448, 52: 487, 53: 526, 54: 560, 55: 602,
-                56: 638, 57: 675, 58: 713, 59: 750, 60: 785, 61: 834, 62: 884, 63: 934, 64: 991, 65: 1048,
-                66: 1100, 67: 1157, 68: 1212, 69: 1269, 70: 1331, 71: 1403
-            },
-            female: {
-                25: 75, 26: 79, 27: 82, 28: 87, 29: 91, 30: 96, 31: 103, 32: 112, 33: 121, 34: 129, 35: 137,
-                36: 146, 37: 154, 38: 164, 39: 175, 40: 185, 41: 200, 42: 215, 43: 232, 44: 250, 45: 267,
-                46: 286, 47: 304, 48: 324, 49: 344, 50: 361, 51: 381, 52: 400, 53: 419, 54: 442, 55: 464,
-                56: 487, 57: 510, 58: 534, 59: 564, 60: 597, 61: 634, 62: 675, 63: 723, 64: 771, 65: 819,
-                66: 867, 67: 913, 68: 963, 69: 1016, 70: 1060, 71: 1116
-            }
-        };
-
-        const getSdhRate = (gender, age) => {
-            const table = sdhRates[gender];
-            if (table[age]) return table[age];
-            const keys = Object.keys(table).map(Number).sort((a,b)=>a-b);
-            let validKey = keys[0];
-            for (let k of keys) {
-                if (k <= age) validKey = k;
-                else break;
-            }
-            return table[validKey];
-        };
-
-        const getSdlRate = (gender, age) => {
-            const table = sdlRates[gender];
-            if (table[age]) return table[age];
-            if (age > 80) return Math.round(table[80] * Math.pow(1.07, age - 80));
-            return table[0]; 
-        };
-
-        const getSdkaRate = (gender, currentAge, entryAge) => {
-            const policyYear = currentAge - entryAge + 1;
-            const blockIndex = Math.floor((policyYear - 1) / 10); 
-            const blockStartAge = entryAge + (blockIndex * 10);
-            if (blockIndex === 0) {
-                const rate = sdkaRates[gender][blockStartAge];
-                return rate ? rate * 100 : 99999; 
-            } else {
-                const rate = sdkbRates[gender][blockStartAge];
-                return rate ? rate * 100 : 99999; 
-            }
-        };
-
-        const App = () => {
-            const [age, setAge] = useState(36);
-            const [gender, setGender] = useState('male');
-            const [etfReturn, setEtfReturn] = useState(8.0);
-            const [years, setYears] = useState(35); 
-            const [showSDL, setShowSDL] = useState(true);
-            const [showSDKA, setShowSDKA] = useState(false);
-            const [activeTable, setActiveTable] = useState('SDL'); 
-
-            const coverageAmountSDL = 10;
-            const coverageAmountSDH = 100;
-
-            const annualBudget = useMemo(() => {
-                const rate = getSdhRate(gender, age);
-                return rate * coverageAmountSDH;
-            }, [age, gender]);
-
-            const data = useMemo(() => {
-                const result = [];
-                let strat1_accum = 0; 
-                let strat2_accum = 0; 
-                let strat3_accum = 0; 
-                let strat4_etf_accum = 0; 
-                
-                for (let i = 0; i <= years; i++) {
-                    if (i === 0) {
-                        result.push({ 
-                            year: 0, age: age,
-                            strat1: 0, strat2: 0, strat3: 0, strat4: 0,
-                            premiumSDL: 0, premiumSDKA: 0,
-                            investable2: 0, investable3: 0,
-                            strat4_bonus: 0, strat3_bonus: 0
-                        });
-                        continue;
-                    }
-                    
-                    const premiumAge = age + i - 1;
-
-                    // 1. Pure 0050
-                    strat1_accum = (strat1_accum * (1 + etfReturn / 100)) + annualBudget;
-
-                    // 2. SDL + 0050
-                    const sdlRate = getSdlRate(gender, premiumAge);
-                    const annualPremiumSDL = sdlRate * coverageAmountSDL;
-                    const netFlow2 = annualBudget - annualPremiumSDL;
-                    strat2_accum = strat2_accum * (1 + etfReturn / 100);
-                    strat2_accum += netFlow2;
-
-                    // 3. SDKA + 0050 
-                    const annualPremiumSDKA = getSdkaRate(gender, premiumAge, age);
-                    const netFlow3 = annualBudget - annualPremiumSDKA;
-                    
-                    strat3_accum = strat3_accum * (1 + etfReturn / 100);
-                    strat3_accum += netFlow3;
-
-                    let strat3_bonus_display = 0;
-                    if (i > 0 && i % 10 === 0) {
-                        const refund = annualPremiumSDKA; 
-                        strat3_accum += refund;
-                        strat3_bonus_display = refund;
-                    }
-
-                    // 4. SDH + 0050 
-                    strat4_etf_accum = strat4_etf_accum * (1 + etfReturn / 100);
-                    if (i > 20) strat4_etf_accum += annualBudget;
-                    
-                    let strat4_total = strat4_etf_accum;
-                    let strat4_bonus_display = 0;
-                    if (i >= 35) {
-                        const totalSDHPremium = annualBudget * 20;
-                        const ropBonus = totalSDHPremium * 1.06;
-                        strat4_total += ropBonus;
-                        if (i === 35) strat4_bonus_display = ropBonus;
-                    }
-
-                    result.push({
-                        year: i,
-                        age: premiumAge,
-                        strat1: Math.round(strat1_accum),
-                        strat2: Math.round(strat2_accum),
-                        strat3: Math.round(strat3_accum), 
-                        strat4: Math.round(strat4_total), 
-                        premiumSDL: annualPremiumSDL,
-                        premiumSDKA: annualPremiumSDKA,
-                        investable2: netFlow2,
-                        investable3: netFlow3, 
-                        deficit2: netFlow2 < 0,
-                        deficit3: netFlow3 < 0,
-                        strat3_bonus: strat3_bonus_display, 
-                        strat4_bonus: strat4_bonus_display 
-                    });
-                }
-                return result;
-            }, [age, gender, etfReturn, years, annualBudget]);
-
-            const sdkaSimplifiedData = useMemo(() => {
-                const blocks = [];
-                const totalBlocks = Math.ceil(years / 10);
-                
-                for (let b = 0; b < totalBlocks; b++) {
-                    const startYear = b * 10 + 1;
-                    const endYear = Math.min((b + 1) * 10, years);
-                    if (startYear > years) break;
-
-                    const startAgeBlock = age + startYear - 1;
-                    const endAgeBlock = age + endYear - 1;
-                    
-                    const yearData = data[startYear];
-                    if (!yearData) continue;
-
-                    const premium = yearData.premiumSDKA;
-                    const investable = yearData.investable3; 
-                    
-                    const bonusYear = (b + 1) * 10;
-                    let bonus = 0;
-                    if (bonusYear <= years) {
-                         const bonusData = data[bonusYear];
-                         bonus = bonusData ? bonusData.strat3_bonus : 0;
-                    }
-
-                    blocks.push({
-                        period: `${startAgeBlock}-${endAgeBlock}歲`,
-                        premium: premium,
-                        investable: investable,
-                        bonus: bonus
-                    });
-                }
-                return blocks;
-            }, [data, years, age]);
-
-
-            const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'decimal', maximumFractionDigits: 0 }).format(val);
-            const formatMoney = (val) => {
-                 if (val >= 100000000) return (val / 100000000).toFixed(2) + "億";
-                 if (val >= 10000) return (val / 10000).toFixed(1) + "萬"; 
-                 return val;
-            };
-
-            const finalData = data[data.length - 1];
-            
-            const totalPremiums = useMemo(() => {
-                const sdl = data.reduce((sum, row) => sum + row.premiumSDL, 0);
-                const sdka = data.reduce((sum, row) => sum + row.premiumSDKA, 0);
-                const sdh = annualBudget * Math.min(years, 20);
-                return { sdl, sdka, sdh };
-            }, [data, annualBudget, years]);
-
+        const BackgroundDecorations = ({ difficulty }) => {
+            if (difficulty === 'hard') return (
+                <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+                    <BatIcon className="absolute text-black opacity-20 w-16 h-16 top-10 left-10" style={{animation: 'flyBat 4s infinite ease-in-out'}} />
+                    <BatIcon className="absolute text-black opacity-10 w-24 h-24 top-1/3 right-20" style={{animation: 'flyBat 6s infinite ease-in-out reverse'}} />
+                </div>
+            );
             return (
-                <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
-                    <header className="mb-6 border-b pb-4">
-                        <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
-                            <CalculatorIcon />
-                            資產累積策略模擬器 (SDH vs SDL vs SDKA)
-                        </h1>
-                        <p className="text-gray-600 mt-2 text-sm md:text-base">
-                            基準：<span className="font-bold text-green-600">SDH保費</span>作為年度預算。
-                        </p>
-                    </header>
+                <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+                    <Cloud className="absolute text-white opacity-40 w-32 h-32 top-20 -left-10" style={{animation: 'floatCloud 8s infinite ease-in-out'}} />
+                    <Cloud className="absolute text-white opacity-30 w-48 h-48 top-40 -right-10" style={{animation: 'floatCloud 12s infinite ease-in-out reverse'}} />
+                </div>
+            );
+        };
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                        <div className="card p-4 border-t-4 border-blue-600 bg-blue-50">
-                            <h3 className="text-xs font-bold text-blue-900 uppercase">策略一 (純0050)</h3>
-                            <div className="text-2xl font-bold text-blue-700 mt-1">{formatMoney(finalData.strat1)}</div>
-                            <div className="text-[10px] text-blue-600 mt-1">無保險成本</div>
-                        </div>
-                        {showSDL && (
-                            <div className="card p-4 border-t-4 border-purple-600 bg-purple-50">
-                                <h3 className="text-xs font-bold text-purple-900 uppercase">策略二 (SDL)</h3>
-                                <div className="text-2xl font-bold text-purple-700 mt-1">{formatMoney(finalData.strat2)}</div>
-                                <div className="text-[10px] text-purple-600 mt-1">自然費率 (消耗型)</div>
-                            </div>
-                        )}
-                        {showSDKA && (
-                            <div className="card p-4 border-t-4 border-orange-500 bg-orange-50">
-                                <h3 className="text-xs font-bold text-orange-900 uppercase">策略三 (SDKA)</h3>
-                                <div className="text-2xl font-bold text-orange-700 mt-1">{formatMoney(finalData.strat3)}</div>
-                                <div className="text-[10px] text-orange-600 mt-1">10年期平準 (含10%回饋)</div>
-                            </div>
-                        )}
-                        <div className="card p-4 border-t-4 border-green-600 bg-green-50">
-                            <h3 className="text-xs font-bold text-green-900 uppercase">策略四 (SDH)</h3>
-                            <div className="text-2xl font-bold text-green-700 mt-1">{formatMoney(finalData.strat4)}</div>
-                            <div className="text-[10px] text-green-600 mt-1">第35年退還 1.06倍</div>
-                        </div>
+        const FileUploader = ({ onDataLoaded, dataSourceStatus, difficulty }) => {
+            const handleFileUpload = (event) => {
+                const files = Array.from(event.target.files);
+                if (files.length === 0) return;
+                const newDb = {}; let processedCount = 0;
+                files.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const content = e.target.result;
+                        if (file.name.toLowerCase().endsWith('.json')) {
+                            try { Object.assign(newDb, JSON.parse(content)); } catch (err) { alert("JSON 格式錯誤"); }
+                        } else {
+                            const parsed = parseCSV(content);
+                            if (parsed) {
+                                let grade = "G1";
+                                if(file.name.includes("G2")) grade = "G2"; else if(file.name.includes("G3")) grade = "G3"; else if(file.name.includes("G4")) grade = "G4"; else if(file.name.includes("G5")) grade = "G5"; else if(file.name.includes("G6")) grade = "G6";
+                                newDb[grade] = parsed;
+                            }
+                        }
+                        processedCount++; if (processedCount === files.length) onDataLoaded(newDb);
+                    };
+                    reader.readAsText(file);
+                });
+            };
+            
+            const isHard = difficulty === 'hard';
+            const containerClass = isHard ? "bg-black/20 border-gray-700" : "bg-white/50 border-gray-200";
+            
+            return (
+                <div className={`mb-6 p-4 border rounded-xl text-center relative z-10 ${containerClass}`}>
+                    <div className="mb-2">
+                         {dataSourceStatus === 'external' ? <p className="text-xs text-green-600 font-bold flex items-center justify-center gap-1"><Globe size={14} /> 雲端資料庫已連線</p> : 
+                          dataSourceStatus === 'manual' ? <p className="text-xs text-blue-600 font-bold flex items-center justify-center gap-1"><HardDrive size={14} /> 已載入使用者檔案</p> : 
+                          <p className={`text-xs opacity-60 font-bold flex items-center justify-center gap-1 ${isHard ? 'text-red-400' : 'text-red-500'}`}><Settings size={14} /> 無資料庫 (請上傳 database.json)</p>}
                     </div>
+                    <input type="file" multiple accept=".csv,.json" onChange={handleFileUpload} className="hidden" id="csv-upload" />
+                    <label htmlFor="csv-upload" className={`cursor-pointer inline-flex items-center gap-2 text-sm font-bold opacity-60 hover:opacity-100 transition-opacity ${isHard ? 'text-blue-300 hover:text-blue-200' : 'text-blue-500 hover:text-blue-600'}`}><Upload size={16} /> 手動更新資料</label>
+                </div>
+            );
+        };
 
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                        <div className="lg:col-span-4 space-y-6">
-                            <div className="card p-5 border-l-4 border-gray-600">
-                                <h3 className="text-lg font-bold text-gray-800 mb-4">參數設定</h3>
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
+        const ModeSwitch = ({ mode, setMode, isHard }) => {
+            const modes = [{ id: 'en-ch', label: '英 ➔ 中' }, { id: 'ch-en', label: '中 ➔ 英' }, { id: 'mixed', label: '混合大亂鬥' }];
+            return (
+                <div className="w-full">
+                    <label className={`text-xs font-bold mb-1 block ${isHard ? 'text-red-300' : 'text-gray-500'}`}>語言模式</label>
+                    <div className="mode-switch">
+                        <div className={`mode-indicator pos-${modes.findIndex(m => m.id === mode)}`}></div>
+                        {modes.map(m => <div key={m.id} className={`mode-label ${mode === m.id ? 'active' : 'inactive'}`} onClick={() => setMode(m.id)}>{m.label}</div>)}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- History Screen Component ---
+        const HistoryScreen = ({ onBack, difficulty }) => {
+            const history = loadHistory();
+            const isHard = difficulty === 'hard';
+            
+            return (
+                <div className="max-w-md mx-auto w-full h-screen flex flex-col p-4 relative z-20">
+                    <div className="flex items-center justify-between mb-6">
+                         {/* Back Button with Text */}
+                         <button onClick={onBack} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold shadow-md transition-all ${isHard ? 'bg-red-800 text-red-100 hover:bg-red-700' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                             <ArrowRight className="rotate-180" size={20} />
+                             <span>返回</span>
+                         </button>
+                         <h2 className={`text-2xl font-black ${isHard ? 'text-red-100' : 'text-gray-800'}`}>英雄榜</h2>
+                         <div className="w-16"></div> {/* Spacer balance */}
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto space-y-3 pb-4">
+                        {history.length === 0 ? (
+                            <div className={`text-center py-10 ${isHard ? 'text-red-400' : 'text-gray-400'}`}>
+                                <p>尚未有考試紀錄</p>
+                            </div>
+                        ) : (
+                            history.map((record, idx) => (
+                                <div key={idx} className={`p-4 rounded-xl shadow-sm border-l-8 flex flex-col gap-2 ${isHard ? 'bg-red-900/40 border-red-500 text-red-100' : 'bg-white border-blue-500 text-gray-700'}`}>
+                                    <div className="flex justify-between items-center text-xs opacity-70">
+                                        <div className="flex items-center gap-1"><Calendar size={12} /> {record.date}</div>
+                                        <div className="flex items-center gap-1"><Clock size={12} /> {record.time}</div>
+                                    </div>
+                                    
+                                    <div className="flex justify-between items-center">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">投保年齡</label>
-                                            <input type="number" min="0" max="60" value={age} onChange={(e) => setAge(Number(e.target.value))} className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
+                                            <div className="text-xs font-bold uppercase tracking-wider mb-1 opacity-80">Exam Scope</div>
+                                            <div className="font-bold text-lg leading-tight">{record.grade}</div>
+                                            <div className="text-sm font-medium">{record.range}</div>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">性別</label>
-                                            <div className="flex bg-gray-100 rounded p-1">
-                                                <button onClick={() => setGender('male')} className={`flex-1 py-1 px-2 rounded text-sm ${gender === 'male' ? 'bg-white shadow text-blue-600 font-bold' : 'text-gray-500'}`}>男</button>
-                                                <button onClick={() => setGender('female')} className={`flex-1 py-1 px-2 rounded text-sm ${gender === 'female' ? 'bg-white shadow text-pink-600 font-bold' : 'text-gray-500'}`}>女</button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
-                                        <label className="block text-xs font-bold text-yellow-800 mb-1">年度總預算 (SDH保費)</label>
-                                        <div className="text-xl font-mono font-bold text-yellow-900">{formatCurrency(annualBudget)} 元</div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">0050 年化報酬率 (%)</label>
-                                        <input 
-                                            type="number" step="0.1"
-                                            value={etfReturn}
-                                            onChange={(e) => setEtfReturn(Number(e.target.value))}
-                                            className="w-full p-2 border border-gray-300 rounded outline-none font-mono"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">模擬年限: {years} 年 ({age}->{age+years}歲)</label>
-                                        <input type="range" min="20" max="44" value={years} onChange={(e) => setYears(Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg cursor-pointer" />
-                                    </div>
-
-                                    <div className="border-t pt-4">
-                                        <label className="block text-sm font-bold text-gray-800 mb-2">比較對象選擇:</label>
-                                        <div className="space-y-2">
-                                            <label className="flex items-center space-x-2 cursor-pointer">
-                                                <input type="checkbox" checked={showSDL} onChange={(e) => setShowSDL(e.target.checked)} />
-                                                <span className="text-sm text-gray-700">策略二: SDL (一年期自然費率)</span>
-                                            </label>
-                                            <label className="flex items-center space-x-2 cursor-pointer">
-                                                <input type="checkbox" checked={showSDKA} onChange={(e) => setShowSDKA(e.target.checked)} />
-                                                <span className="text-sm text-gray-700">策略三: SDKA (10年期平準 + 回饋)</span>
-                                            </label>
+                                        <div className="text-right">
+                                            <div className={`text-2xl font-black ${record.rank === 'PERFECT' ? 'text-yellow-500' : ''}`}>{record.rank}</div>
+                                            <div className="text-xs font-bold opacity-60">Score: {record.score}</div>
                                         </div>
                                     </div>
                                     
-                                    <div className="border-t pt-4">
-                                        <label className="block text-sm font-bold text-gray-800 mb-2">累計已繳保費 ({years}年):</label>
-                                        <div className="space-y-2 text-sm">
-                                            {showSDL && (
-                                                <div className="flex justify-between items-center bg-purple-50 p-2 rounded">
-                                                    <span className="text-purple-900">SDL 總繳</span>
-                                                    <span className="font-mono font-bold text-purple-700">{formatCurrency(totalPremiums.sdl)}</span>
-                                                </div>
-                                            )}
-                                            {showSDKA && (
-                                                <div className="flex justify-between items-center bg-orange-50 p-2 rounded">
-                                                    <span className="text-orange-900">SDKA 總繳</span>
-                                                    <span className="font-mono font-bold text-orange-700">{formatCurrency(totalPremiums.sdka)}</span>
-                                                </div>
-                                            )}
-                                            <div className="flex justify-between items-center bg-green-50 p-2 rounded">
-                                                <span className="text-green-900">SDH 總繳</span>
-                                                <span className="font-mono font-bold text-green-700">{formatCurrency(totalPremiums.sdh)}</span>
-                                            </div>
-                                        </div>
+                                    <div className="flex gap-2 mt-1">
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${record.difficulty === 'hard' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
+                                            {record.difficulty === 'hard' ? '地獄' : '天使'}
+                                        </span>
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 font-bold">
+                                            {record.mode}
+                                        </span>
                                     </div>
                                 </div>
-                            </div>
+                            ))
+                        )}
+                    </div>
 
-                            <div className="card overflow-hidden flex flex-col h-[400px]">
-                                <div className="flex border-b border-gray-200">
-                                    <button 
-                                        onClick={() => setActiveTable('SDL')}
-                                        className={`flex-1 py-3 text-sm font-medium text-center ${activeTable === 'SDL' ? 'tab-active' : 'tab-inactive hover:text-gray-800'}`}
-                                    >
-                                        SDL 明細 (自然費率)
-                                    </button>
-                                    <button 
-                                        onClick={() => setActiveTable('SDKA')}
-                                        className={`flex-1 py-3 text-sm font-medium text-center ${activeTable === 'SDKA' ? 'tab-active' : 'tab-inactive hover:text-gray-800'}`}
-                                    >
-                                        SDKA 明細 (階梯式)
-                                    </button>
-                                </div>
-                                
-                                <div className="overflow-y-auto custom-scroll flex-1 p-0">
-                                    {activeTable === 'SDL' ? (
-                                        <table className="w-full text-xs text-left">
-                                            <thead className="text-gray-500 bg-gray-50 sticky top-0 z-10">
-                                                <tr>
-                                                    <th className="px-3 py-2 font-medium">年齡</th>
-                                                    <th className="px-3 py-2 font-medium">保費(消耗)</th>
-                                                    <th className="px-3 py-2 font-medium text-right">剩餘/倒扣</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {data.filter(r => r.year > 0).map((row) => (
-                                                    <tr key={row.year} className={`border-b last:border-0 hover:bg-gray-50 ${row.deficit2 ? 'bg-red-50' : ''}`}>
-                                                        <td className="px-3 py-2 text-gray-600">{row.age} 歲</td>
-                                                        <td className="px-3 py-2 text-gray-800">-{formatCurrency(row.premiumSDL)}</td>
-                                                        <td className={`px-3 py-2 font-bold text-right ${row.investable2 < 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                                                            {formatCurrency(row.investable2)}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    ) : (
-                                        <table className="w-full text-xs text-left">
-                                            <thead className="text-gray-500 bg-gray-50 sticky top-0 z-10">
-                                                <tr>
-                                                    <th className="px-3 py-2 font-medium">期間</th>
-                                                    <th className="px-3 py-2 font-medium">年繳保費</th>
-                                                    <th className="px-3 py-2 font-medium text-right">年投入ETF</th>
-                                                    <th className="px-3 py-2 font-medium text-right">期末回沖</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {sdkaSimplifiedData.map((block, idx) => (
-                                                    <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
-                                                        <td className="px-3 py-3 text-gray-600 font-medium">{block.period}</td>
-                                                        <td className="px-3 py-3 text-orange-800">-{formatCurrency(block.premium)}</td>
-                                                        <td className={`px-3 py-3 text-right font-mono ${block.investable < 0 ? 'text-red-600 font-bold' : 'text-blue-600'}`}>
-                                                            {formatCurrency(block.investable)}
-                                                        </td>
-                                                        <td className="px-3 py-3 text-right font-bold text-green-600">
-                                                            {block.bonus > 0 ? `+${formatCurrency(block.bonus)}` : '-'}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    )}
-                                </div>
-                                <div className="p-2 bg-gray-50 text-[10px] text-gray-500 border-t text-center">
-                                    {activeTable === 'SDL' ? '紅字代表保費超過預算，從資產中倒扣 (需額外補錢)' : '每10年為一期，期末回沖10%保費'}
-                                </div>
-                            </div>
+                    <div className="mt-4">
+                        <button onClick={onBack} className={`w-full py-3 rounded-xl font-bold shadow-lg transition-all ${isHard ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}>
+                            關閉列表
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const MainMenu = ({ db, onStartGame, difficulty, setDifficulty, savedSettings, onShowHistory }) => {
+            const [selectedGrades, setSelectedGrades] = useState([]);
+            const [startUnit, setStartUnit] = useState(null);
+            const [endUnit, setEndUnit] = useState(null);
+            const [mode, setMode] = useState("en-ch"); 
+
+            useEffect(() => {
+                const settings = loadSettings();
+                if (settings) {
+                    if (settings.grades && Array.isArray(settings.grades)) setSelectedGrades(settings.grades);
+                    if (settings.startUnit) setStartUnit(settings.startUnit);
+                    if (settings.endUnit) setEndUnit(settings.endUnit);
+                    if (settings.mode) setMode(settings.mode);
+                    if (settings.difficulty) setDifficulty(settings.difficulty);
+                } else {
+                    const available = Object.keys(db).sort();
+                    if (available.length > 0) {
+                        setSelectedGrades([available[0]]);
+                    }
+                }
+            }, []); 
+
+            const availableUnits = useMemo(() => {
+                if (selectedGrades.length === 0) return [];
+                const unitsSet = new Set();
+                selectedGrades.forEach(g => {
+                    if (db[g]) Object.keys(db[g]).forEach(key => { if (key.startsWith("Unit ")) unitsSet.add(key.replace("Unit ", "")); });
+                });
+                return Array.from(unitsSet).sort((a, b) => {
+                    const nA = parseInt(a), nB = parseInt(b);
+                    if (!isNaN(nA) && !isNaN(nB)) return nA - nB;
+                    if (!isNaN(nA)) return -1; if (!isNaN(nB)) return 1;
+                    return a.localeCompare(b);
+                });
+            }, [selectedGrades, db]);
+
+            useEffect(() => {
+                if (availableUnits.length > 0) {
+                    if (!startUnit || !availableUnits.includes(startUnit)) setStartUnit(availableUnits[0]);
+                    if (!endUnit || !availableUnits.includes(endUnit)) setEndUnit(availableUnits[availableUnits.length - 1]);
+                }
+            }, [availableUnits]);
+
+            useEffect(() => {
+                const available = Object.keys(db).sort();
+                if (available.length > 0 && selectedGrades.length === 0 && loadSettings() === null) setSelectedGrades([available[0]]);
+            }, [db]);
+
+            const toggleGrade = (grade) => {
+                if (!db[grade]) return;
+                setSelectedGrades(prev => prev.includes(grade) ? prev.filter(g => g !== grade) : [...prev, grade]);
+            };
+
+            const handleStart = () => {
+                if (selectedGrades.length === 0) return;
+                
+                const startIndex = availableUnits.indexOf(startUnit);
+                const endIndex = availableUnits.indexOf(endUnit);
+                const validStart = Math.min(startIndex, endIndex);
+                const validEnd = Math.max(startIndex, endIndex);
+                const targetUnits = availableUnits.slice(validStart, validEnd + 1);
+
+                saveSettings({ grades: selectedGrades, startUnit, endUnit, mode, difficulty });
+                onStartGame({ grades: selectedGrades, targetUnits, mode, difficulty });
+            };
+
+            const availableGrades = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'];
+            const isHard = difficulty === 'hard';
+
+            return (
+                <div className="max-w-md mx-auto w-full p-2 relative z-10">
+                    <div className="flex justify-end mb-2">
+                         <button onClick={onShowHistory} className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold shadow-sm transition-all ${isHard ? 'bg-red-900/50 text-red-200 border border-red-700 hover:bg-red-800' : 'bg-white/80 text-blue-600 border border-blue-100 hover:bg-white'}`}>
+                             <Trophy size={16} /> 英雄榜
+                         </button>
+                    </div>
+
+                    <div className="text-center mb-6 -mt-2">
+                        <h1 className={`text-4xl font-black drop-shadow-md mb-2 tracking-wide transition-colors ${isHard ? 'text-red-500' : 'text-yellow-500'}`} style={{fontFamily: 'Fredoka'}}>VOCAB MASTER</h1>
+                        <p className={`font-medium flex items-center justify-center gap-2 transition-colors ${isHard ? 'text-red-300' : 'text-gray-600'}`}>Everybody Up 單字複習</p>
+                    </div>
+
+                    <div className="mb-6">
+                        <div className="gamified-switch" onClick={() => setDifficulty(isHard ? 'easy' : 'hard')}>
+                            <div className={`switch-indicator ${isHard ? 'hard-active' : 'easy-active'}`}></div>
+                            <div className={`switch-label ${!isHard ? 'active' : 'inactive'}`}><Smile size={20} /> 天使模式</div>
+                            <div className={`switch-label ${isHard ? 'active' : 'inactive'}`}><Flame size={20} /> 地獄模式</div>
                         </div>
+                        <p className={`text-xs mt-3 text-center font-bold transition-colors ${isHard ? 'text-red-400' : 'text-blue-600'}`}>{isHard ? '🔥 燃燒吧！極限拼字，錯了沒分！' : '🍰 一塊蛋糕！輕鬆選，快樂拿分！'}</p>
+                    </div>
 
-                        {/* Chart */}
-                        <div className="lg:col-span-8 space-y-6">
-                            <div className="card p-4 h-[550px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={data} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                                        <XAxis dataKey="age" label={{ value: '年齡', position: 'insideBottomRight', offset: -5 }} tickLine={false} axisLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
-                                        <YAxis tickFormatter={(val) => val >= 10000 ? `${val/10000}萬` : val} tickLine={false} axisLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
-                                        <Tooltip 
-                                            contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
-                                            labelFormatter={(l) => `${l} 歲 (第 ${l - age + 1} 年)`}
-                                            formatter={(value, name, props) => {
-                                                if (name === "策略一") return [formatCurrency(value), "純 0050"];
-                                                if (name === "策略二") return [
-                                                    <span key="s2">
-                                                        {formatCurrency(value)}
-                                                        <span className="text-xs text-gray-400 block font-normal">(費率: {formatCurrency(props.payload.premiumSDL)})</span>
-                                                    </span>, "SDL"];
-                                                if (name === "策略三") return [
-                                                    <span key="s3">
-                                                        {formatCurrency(value)}
-                                                        {props.payload.strat3_bonus > 0 && <span className="text-xs text-orange-600 block font-bold">(無理賠回饋: {formatMoney(props.payload.strat3_bonus)})</span>}
-                                                    </span>, "SDKA"];
-                                                if (name === "策略四") return [
-                                                    <span key="s4">
-                                                        {formatCurrency(value)}
-                                                        {props.payload.strat4_bonus > 0 && <span className="text-xs text-green-600 block font-bold">(含退還: {formatMoney(props.payload.strat4_bonus)})</span>}
-                                                    </span>, "SDH"];
-                                                return [value, name];
-                                            }}
-                                        />
-                                        <Legend verticalAlign="top" height={36}/>
-                                        <Line type="monotone" dataKey="strat1" name="策略一 (純0050)" stroke="#2563eb" strokeWidth={3} dot={false} />
-                                        {showSDL && <Line type="monotone" dataKey="strat2" name="策略二 (SDL)" stroke="#9333ea" strokeWidth={3} dot={false} />}
-                                        {showSDKA && <Line type="monotone" dataKey="strat3" name="策略三 (SDKA)" stroke="#f97316" strokeWidth={3} dot={false} />}
-                                        <Line type="monotone" dataKey="strat4" name="策略四 (SDH)" stroke="#16a34a" strokeWidth={3} dot={false} />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
-                            
-                            <div className="bg-white border rounded-lg p-4 text-sm text-gray-700 shadow-sm">
-                                <h4 className="font-bold text-gray-900 mb-2">明細說明</h4>
-                                <ul className="list-disc pl-5 space-y-2 text-xs md:text-sm">
-                                    <li>
-                                        <span className="font-bold text-purple-600">策略二 (SDL)：</span>
-                                        一年期自然費率。紅字代表當年度保費 > 預算，需從 ETF 資產中倒扣。
-                                    </li>
-                                    <li>
-                                        <span className="font-bold text-orange-600">策略三 (SDKA)：</span>
-                                        10 年期平準費率。每 10 年固定繳費，期末若無理賠可回沖一年保費 (10%)。
-                                    </li>
-                                </ul>
-                            </div>
+                    <div className="mb-6">
+                        <label className={`block font-bold mb-2 flex items-center gap-2 transition-colors ${isHard ? 'text-red-200' : 'text-gray-700'}`}><Book size={20} className={isHard ? "text-red-500" : "text-blue-500"}/> 選擇年級</label>
+                        <div className="grid grid-cols-3 gap-3">
+                            {availableGrades.map(g => {
+                                const hasData = !!db[g]; const isSelected = selectedGrades.includes(g);
+                                return <button key={g} onClick={() => toggleGrade(g)} disabled={!hasData} className={`py-3 rounded-xl font-bold text-lg transition-all relative ${!hasData ? "bg-gray-100 text-gray-300" : isSelected ? (isHard ? "bg-red-600 text-white shadow-lg ring-2 ring-red-400" : "bg-blue-500 text-white shadow-lg ring-2 ring-blue-300") : "bg-white text-gray-600 border-2 border-gray-100"}`}>{g}{isSelected && <CheckCircle size={16} className="absolute top-1 right-1 text-white/50" />}</button>;
+                            })}
                         </div>
                     </div>
+
+                    <div className="flex flex-col gap-4 mb-8">
+                        <div className={`w-full p-2 rounded-xl border transition-colors ${isHard ? 'bg-red-950/30 border-red-900' : 'bg-white/50 border-gray-200'}`}>
+                            <label className={`text-xs font-bold mb-1 block ${isHard ? 'text-red-300' : 'text-gray-500'}`}>範圍 Unit</label>
+                            <div className="flex items-center gap-1">
+                                <select value={startUnit || ""} onChange={(e) => setStartUnit(e.target.value)} className={`w-full h-12 rounded px-2 text-lg font-bold border outline-none ${isHard ? 'bg-red-900 text-white border-red-800' : 'bg-white border-gray-200'}`}>{availableUnits.map(u => <option key={u} value={u}>{u}</option>)}</select>
+                                <span className={`text-xl font-bold px-1 ${isHard ? 'text-red-500' : 'text-gray-400'}`}>-</span>
+                                <select value={endUnit || ""} onChange={(e) => setEndUnit(e.target.value)} className={`w-full h-12 rounded px-2 text-lg font-bold border outline-none ${isHard ? 'bg-red-900 text-white border-red-800' : 'bg-white border-gray-200'}`}>{availableUnits.map(u => <option key={u} value={u}>{u}</option>)}</select>
+                            </div>
+                        </div>
+                        
+                        <div className={`w-full p-2 rounded-xl border transition-colors ${isHard ? 'bg-red-950/30 border-red-900' : 'bg-white/50 border-gray-200'}`}>
+                            <ModeSwitch mode={mode} setMode={setMode} isHard={isHard} />
+                        </div>
+                    </div>
+
+                    <button onClick={handleStart} disabled={selectedGrades.length === 0 || !startUnit} className={`w-full text-xl font-black py-4 rounded-2xl shadow-lg transform transition flex items-center justify-center gap-2 ${selectedGrades.length > 0 && startUnit ? (isHard ? 'bg-gradient-to-r from-red-600 to-orange-700 hover:from-red-500 text-white active:scale-95' : 'bg-gradient-to-r from-blue-400 to-indigo-500 hover:from-blue-500 text-white active:scale-95') : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}><Play fill="white" /> {isHard ? '接受挑戰' : '開始練習'}</button>
+                </div>
+            );
+        };
+
+        const GameScreen = ({ config, db, onFinish, onHome }) => {
+            const [questions, setQuestions] = useState([]);
+            const [currentQIndex, setCurrentQIndex] = useState(0);
+            const [selectedOption, setSelectedOption] = useState(null);
+            const [isCorrect, setIsCorrect] = useState(null); 
+            const [score, setScore] = useState(0);
+            const [streak, setStreak] = useState(0);
+            const [shakingIndex, setShakingIndex] = useState(-1);
+            const [inputAnswer, setInputAnswer] = useState(""); 
+            const [wrongQuestions, setWrongQuestions] = useState([]); 
+            const inputRef = useRef(null); const nextBtnRef = useRef(null);
+
+            useEffect(() => {
+                const { grades, targetUnits, mode, difficulty } = config;
+                let pool = [];
+                grades.forEach(grade => {
+                    targetUnits.forEach(uSuffix => {
+                        const uKey = `Unit ${uSuffix}`;
+                        if (db[grade] && db[grade][uKey]) pool = [...pool, ...db[grade][uKey]];
+                    });
+                });
+                if (pool.length === 0) { alert("⚠️ 查無資料！"); onHome(); return; }
+
+                const TARGET = 10;
+                let selected = pool.length >= TARGET ? [...pool].sort(() => 0.5 - Math.random()).slice(0, TARGET) : [...pool];
+                while (selected.length < TARGET) selected.push(pool[Math.floor(Math.random() * pool.length)]);
+                selected.sort(() => 0.5 - Math.random());
+
+                const qs = selected.map(word => {
+                    let type = mode === 'mixed' ? (Math.random() > 0.5 ? 'en-ch' : 'ch-en') : mode;
+                    const qText = type === 'en-ch' ? word.en : word.ch;
+                    const aText = type === 'en-ch' ? word.ch : word.en;
+                    let opts = [];
+                    if (difficulty === 'easy') {
+                        let uniquePool = [...new Set(pool.map(w => JSON.stringify(w)))].map(s => JSON.parse(s));
+                        let distractors = uniquePool.filter(w => (type === 'en-ch' ? w.ch : w.en) !== aText).map(w => (type === 'en-ch' ? w.ch : w.en));
+                        opts = [...distractors.sort(() => 0.5 - Math.random()).slice(0, 3), aText].sort(() => 0.5 - Math.random());
+                    }
+                    return { q: qText, a: aText, options: opts, type, originalWord: word };
+                });
+                setQuestions(qs);
+            }, [config, db]);
+
+            useEffect(() => {
+                if (config.difficulty === 'hard' && isCorrect === null) setTimeout(() => inputRef.current?.focus(), 50);
+                else if (isCorrect !== null) setTimeout(() => nextBtnRef.current?.focus(), 50);
+            }, [currentQIndex, isCorrect]);
+
+            const speak = (txt) => { if (/[a-zA-Z]/.test(txt)) { const u = new SpeechSynthesisUtterance(txt); u.lang = 'en-US'; window.speechSynthesis.speak(u); } };
+
+            const handleOption = (opt, idx) => {
+                if (isCorrect !== null) return;
+                const q = questions[currentQIndex];
+                if (opt === q.a) {
+                    setIsCorrect(true); setScore(s => s + 10 + Math.min(streak * 2, 10)); setStreak(s => s + 1);
+                    confetti({ particleCount: 30, spread: 50, origin: { y: 0.7 }, colors: ['#22c55e', '#fbbf24'] });
+                    speak(q.type === 'ch-en' ? opt : q.q);
+                } else {
+                    setIsCorrect(false); setStreak(0); setWrongQuestions(p => [...p, { q: q.q, a: q.a, user: opt, type: q.type }]);
+                }
+                setSelectedOption(opt);
+            };
+
+            const handleInput = (e) => {
+                e.preventDefault(); if (isCorrect !== null) return;
+                const q = questions[currentQIndex];
+                if (inputAnswer.trim().toLowerCase() === q.a.toLowerCase()) {
+                    setIsCorrect(true); setScore(s => s + 20 + Math.min(streak * 5, 20)); setStreak(s => s + 1);
+                    confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+                    speak(q.type === 'ch-en' ? q.a : q.q);
+                } else {
+                    setIsCorrect(false); setStreak(0); setWrongQuestions(p => [...p, { q: q.q, a: q.a, user: inputAnswer, type: q.type }]);
+                }
+            };
+
+            const next = () => { if (currentQIndex < questions.length - 1) { setCurrentQIndex(p => p + 1); setSelectedOption(null); setIsCorrect(null); setInputAnswer(""); } else { onFinish(score, wrongQuestions); } };
+
+            if (questions.length === 0) return <div className="p-10 text-center font-bold text-gray-500">準備中...</div>;
+            const q = questions[currentQIndex];
+            const isHard = config.difficulty === 'hard';
+
+            return (
+                <div className="max-w-md mx-auto w-full h-screen flex flex-col pb-6 px-4 relative z-10">
+                    <div className="flex justify-between items-center mb-4 pt-4">
+                        <button onClick={onHome} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 font-bold transition-all ${isHard ? 'border-red-400 bg-red-900/40 text-red-200' : 'border-blue-200 bg-white/60 text-blue-600'}`}><LogOut size={18} /> <span className="text-sm">退出重設</span></button>
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full shadow-sm ${isHard ? 'bg-red-900/50 text-red-200' : 'bg-white text-gray-700'}`}><Star className="text-yellow-400 fill-current" size={18} /><span className="font-bold">{score}</span></div>
+                        <div className="flex items-center gap-1">{streak > 1 && <span className="text-orange-500 font-black italic animate-pulse mr-2">{streak} COMBO!</span>}<span className={`text-sm font-bold ${isHard ? 'text-red-400' : 'text-gray-400'}`}>{currentQIndex + 1}/{questions.length}</span></div>
+                    </div>
+                    <div className={`w-full h-3 rounded-full mb-6 overflow-hidden ${isHard ? 'bg-red-900' : 'bg-gray-200'}`}><div className={`h-full rounded-full transition-all duration-500 ease-out ${isHard ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${((currentQIndex) / questions.length) * 100}%` }}></div></div>
+                    <div className="flex-grow flex flex-col justify-center">
+                        <div className={`rounded-3xl p-8 mb-6 card-shadow text-center relative overflow-hidden min-h-[160px] flex flex-col justify-center items-center transition-colors duration-300 ${isHard ? 'bg-red-950 border border-red-900' : 'bg-white'} ${isCorrect === false && isHard ? 'border-4 border-red-500' : ''}`}>
+                            {isCorrect === true && <div className="absolute inset-0 bg-green-100 opacity-20 correct-flash"></div>}
+                            <span className={`absolute top-4 left-0 right-0 mx-auto w-max px-3 py-1 text-xs font-bold rounded-full ${isHard ? 'bg-red-900 text-red-300' : 'bg-gray-100 text-gray-400'}`}>{q.type === 'en-ch' ? '英文 ➔ 中文' : '中文 ➔ 英文'}</span>
+                            <h2 className={`text-3xl font-black break-words leading-tight mt-4 ${isHard ? 'text-red-100' : 'text-gray-800'}`}>{q.q}</h2>
+                            {q.type === 'en-ch' && <button onClick={() => speak(q.q)} className={`mt-4 ${isHard ? 'text-red-400 hover:text-red-200' : 'text-blue-400 hover:text-blue-600'}`}><Volume2 size={24} /></button>}
+                        </div>
+                        {!isHard ? (
+                            <div className="grid grid-cols-1 gap-3">
+                                {q.options.map((opt, idx) => {
+                                    const isSel = selectedOption === opt; const isAns = opt === q.a;
+                                    let btnClass = "bg-white text-gray-700 border-b-4 border-gray-200 hover:bg-gray-50 active:border-b-0 active:translate-y-[4px]";
+                                    if (isCorrect !== null) {
+                                        if (isAns) btnClass = "bg-green-500 text-white border-green-700 border-b-4";
+                                        else if (isSel && !isCorrect) btnClass = "bg-red-500 text-white border-red-700 border-b-4";
+                                        else btnClass = "bg-gray-100 text-gray-400 border-gray-200 border-b-4 opacity-50";
+                                    }
+                                    return <button key={idx} onClick={() => handleOption(opt, idx)} disabled={isCorrect !== null} className={`w-full py-3 px-2 rounded-xl font-bold text-lg transition-all relative ${btnClass}`}>{opt}{isCorrect !== null && isAns && <CheckCircle className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80" />}{isSel && !isCorrect && <XCircle className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80" />}</button>;
+                                })}
+                            </div>
+                        ) : (
+                            <div className="w-full">
+                                <form onSubmit={handleInput} className="relative">
+                                    <input ref={inputRef} type="text" value={inputAnswer} onChange={(e) => setInputAnswer(e.target.value)} disabled={isCorrect !== null} placeholder="在此輸入答案..." autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false" className={`w-full p-4 text-xl font-bold text-center rounded-xl border-2 outline-none transition-colors ${isCorrect === true ? 'border-green-500 bg-green-900/30 text-green-400' : isCorrect === false ? 'border-red-500 bg-red-900/30 text-red-400' : 'border-red-800 bg-red-950 text-white focus:border-red-500'}`} />
+                                    {isCorrect === null && <button type="submit" className="absolute right-2 top-2 bottom-2 bg-red-600 text-white px-4 rounded-lg font-bold hover:bg-red-500">GO</button>}
+                                </form>
+                                {isCorrect === false && <div className="mt-4 p-4 bg-red-950/50 border border-red-900 rounded-xl text-center animate-bounce-short"><p className="text-red-400 font-bold text-sm uppercase">Correct Answer</p><p className="text-2xl font-black text-red-500">{q.a}</p></div>}
+                            </div>
+                        )}
+                    </div>
+                    <div className="h-20 flex items-center justify-center mt-4">{(isCorrect !== null) && <button ref={nextBtnRef} onClick={next} className={`w-full text-xl font-bold py-3 rounded-2xl shadow-lg flex items-center justify-center gap-2 animate-bounce-short ${isHard ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}>下一題 <ArrowRight /></button>}</div>
+                </div>
+            );
+        };
+
+        const ResultScreen = ({ score, wrongQuestions, onRestart, difficulty, config }) => {
+            const isHard = difficulty === 'hard';
+            const maxScore = isHard ? 350 : 170;
+            const correctCount = 10 - wrongQuestions.length;
+            let rank = 'B'; let RankIcon = XCircle; let rankColor = 'text-gray-500'; let iconSize = 80; let feedbackClass = ""; 
+
+            if (correctCount === 10) { rank = 'PERFECT'; RankIcon = Crown; rankColor = 'text-yellow-400 drop-shadow-xl animate-bounce-custom'; iconSize = 160; feedbackClass = isHard ? "border-4 border-yellow-500 shadow-[0_0_60px_rgba(234,179,8,0.6)] bg-gradient-to-b from-red-950 to-yellow-900/20" : "border-4 border-yellow-300 shadow-[0_0_60px_rgba(250,204,21,0.6)] bg-gradient-to-b from-white to-yellow-50"; } 
+            else if (correctCount >= 9) { rank = 'SS'; RankIcon = Trophy; rankColor = 'text-yellow-500'; feedbackClass = isHard ? "border-2 border-purple-500 shadow-[0_0_30px_rgba(168,85,247,0.4)]" : "border-2 border-purple-200 shadow-[0_0_30px_rgba(168,85,247,0.2)]"; } 
+            else if (correctCount >= 8) { rank = 'S'; RankIcon = Star; rankColor = 'text-purple-500'; feedbackClass = isHard ? "border-2 border-purple-500 shadow-[0_0_30px_rgba(168,85,247,0.4)]" : "border-2 border-purple-200 shadow-[0_0_30px_rgba(168,85,247,0.2)]"; } 
+            else if (correctCount >= 6) { rank = 'A'; RankIcon = CheckCircle; rankColor = 'text-green-500'; feedbackClass = isHard ? "border border-green-800 shadow-[0_0_20px_rgba(34,197,94,0.2)]" : "border border-green-200 shadow-lg"; } 
+            else { rank = 'B'; RankIcon = XCircle; rankColor = 'text-red-400'; feedbackClass = isHard ? "border border-red-900 opacity-90" : "border border-red-100"; }
+
+            useEffect(() => {
+                if (correctCount >= 6) { const isPerfect = correctCount === 10; confetti({ particleCount: isPerfect ? 300 : 100, spread: isPerfect ? 120 : 70, origin: { y: 0.6 }, colors: isPerfect ? ['#FFD700', '#FFA500', '#FFFFFF'] : undefined }); }
+                
+                const now = new Date();
+                const record = {
+                    date: now.toLocaleDateString(),
+                    time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    grade: config.grades.join(', '),
+                    range: `Unit ${config.targetUnits[0]} - Unit ${config.targetUnits[config.targetUnits.length-1]}`,
+                    score: score,
+                    rank: rank,
+                    difficulty: difficulty,
+                    mode: config.mode
+                };
+                saveHistoryRecord(record);
+            }, []);
+
+            return (
+                <div className={`max-w-md mx-auto w-full min-h-screen flex flex-col p-4 overflow-y-auto relative z-10 ${isHard ? 'text-white' : 'text-gray-800'}`}>
+                    <div className={`p-8 rounded-3xl shadow-xl w-full text-center mb-6 relative transition-all duration-500 ${isHard ? 'bg-red-950' : 'bg-white'} ${feedbackClass}`}>
+                        <div className={`mx-auto mb-4 flex items-center justify-center transition-all duration-500 ${rankColor}`}><RankIcon size={iconSize} strokeWidth={1.5} /></div>
+                        <h2 className={`text-3xl font-bold mb-2 ${isHard ? 'text-red-100' : 'text-gray-800'}`}>挑戰完成!</h2>
+                        <div className="my-4"><span className={`font-bold uppercase tracking-widest text-sm ${isHard ? 'text-red-400' : 'text-gray-400'}`}>Score</span><div className={`text-6xl font-black ${isHard ? 'text-white' : 'text-gray-800'}`}>{score} <span className="text-xl opacity-50">/ {maxScore}</span></div></div>
+                        <div className="mb-6"><span className={`font-bold uppercase tracking-widest text-sm ${isHard ? 'text-red-400' : 'text-gray-400'}`}>Rank</span><div className={`text-6xl font-black ${rankColor} drop-shadow-sm`}>{rank}</div></div>
+                        <button onClick={onRestart} className={`w-full font-bold py-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 ${isHard ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}><RefreshCcw size={20}/> 再玩一次</button>
+                    </div>
+                    {wrongQuestions.length > 0 && (
+                        <div className={`p-6 rounded-3xl shadow-md w-full ${isHard ? 'bg-red-950 border border-red-900' : 'bg-white'}`}>
+                            <h3 className="text-xl font-bold text-red-500 mb-4 flex items-center gap-2"><Eye size={24}/> 錯題複習 ({wrongQuestions.length})</h3>
+                            <div className="space-y-4">{wrongQuestions.map((item, idx) => (<div key={idx} className={`border-b pb-3 last:border-0 last:pb-0 ${isHard ? 'border-red-900' : 'border-gray-100'}`}><p className={`text-sm font-bold mb-1 ${isHard ? 'text-red-300' : 'text-gray-500'}`}>Q: {item.q}</p><div className="flex justify-between items-center"><span className="text-red-400 line-through text-sm">{item.user || "(未作答)"}</span><span className="text-green-500 font-black text-lg">{item.a}</span></div></div>))}</div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [db, setDb] = useState(FALLBACK_DATA); 
+            const [gameState, setGameState] = useState('menu'); 
+            const [gameConfig, setGameConfig] = useState(null);
+            const [finalScore, setFinalScore] = useState(0);
+            const [wrongQuestions, setWrongQuestions] = useState([]);
+            const [dataSourceStatus, setDataSourceStatus] = useState('none'); 
+            const [difficulty, setDifficulty] = useState('easy'); 
+            const [savedSettings, setSavedSettings] = useState(null);
+
+            useEffect(() => {
+                const timestamp = new Date().getTime(); 
+                fetch(`./database.json?t=${timestamp}`).then(r => { if (!r.ok) throw new Error(); return r.json(); })
+                    .then(d => { setDb(d); setDataSourceStatus('external'); })
+                    .catch(e => { console.log("Fallback"); setDataSourceStatus('none'); });
+            }, []);
+
+            const handleDataLoaded = (newDb) => { setDb(prev => ({ ...prev, ...newDb })); setDataSourceStatus('manual'); alert(`成功載入資料！`); };
+            const startGame = (config) => { setGameConfig(config); setGameState('game'); };
+            const finishGame = (score, wrongs) => { setFinalScore(score); setWrongQuestions(wrongs || []); setGameState('result'); };
+            const restart = () => { setGameState('menu'); setFinalScore(0); setWrongQuestions([]); };
+
+            return (
+                <div className={`min-h-screen flex items-center justify-center transition-colors duration-800 ${difficulty === 'hard' ? 'theme-hard' : 'theme-easy'}`}>
+                    <BackgroundDecorations difficulty={difficulty} />
+                    {gameState === 'menu' && <div className="w-full max-w-md relative z-10"><MainMenu db={db} onStartGame={startGame} difficulty={difficulty} setDifficulty={setDifficulty} savedSettings={savedSettings} onShowHistory={() => setGameState('history')} /><FileUploader onDataLoaded={handleDataLoaded} dataSourceStatus={dataSourceStatus} difficulty={difficulty} /></div>}
+                    {gameState === 'history' && <HistoryScreen onBack={() => setGameState('menu')} difficulty={difficulty} />}
+                    {gameState === 'game' && <GameScreen config={gameConfig} db={db} onFinish={finishGame} onHome={restart} />}
+                    {gameState === 'result' && <ResultScreen score={finalScore} wrongQuestions={wrongQuestions} onRestart={restart} difficulty={difficulty} config={gameConfig} />}
                 </div>
             );
         };
